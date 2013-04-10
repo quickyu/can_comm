@@ -1,5 +1,5 @@
 Dependencies for Project 'can_module', Target 'Target 1': (DO NOT MODIFY !)
-F (.\src\main.c)(0x50A5F53B)(-c --cpu Cortex-M3 -D__RTX -g -O2 --apcs=interwork -I.\src\include -I d:\Keil\ARM\RV31\Inc -I d:\Keil\ARM\CMSIS\Include -I d:\Keil\ARM\Inc\ST\STM32F10x -DSTM32F10X_MD -o ".\output\main.o" --omf_browse ".\output\main.crf" --depend ".\output\main.d")
+F (.\src\main.c)(0x51611DF9)(-c --cpu Cortex-M3 -D__RTX -g -O2 --apcs=interwork -I.\src\include -I d:\Keil\ARM\RV31\Inc -I d:\Keil\ARM\CMSIS\Include -I d:\Keil\ARM\Inc\ST\STM32F10x -DSTM32F10X_MD -o ".\output\main.o" --omf_browse ".\output\main.crf" --depend ".\output\main.d")
 I (d:\Keil\ARM\RV31\Inc\stdio.h)(0x4D461916)
 I (d:\Keil\ARM\RV31\Inc\stdlib.h)(0x4D4B9C24)
 I (d:\Keil\ARM\RV31\Inc\string.h)(0x4D461916)

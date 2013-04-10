@@ -26,6 +26,8 @@ os_mbx_declare(can_msg_queue, CAN_MSG_CNT);
 
 OS_MUT serial_send_mutex;
 
+static int comm_led = 0;
+
 
 
 void NVIC_config(void)
@@ -36,7 +38,7 @@ void NVIC_config(void)
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_0);
   
 	/* Enable the USART2 Interrupt */
-	NVIC_InitStructure.NVIC_IRQChannel = USART2_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
 	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
 	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
 	NVIC_Init(&NVIC_InitStructure);
@@ -60,6 +62,13 @@ void init_gpio(void)
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+
+	GPIOA->BSRR = (1<<7)|(1<<6);
 }
 
 void init_serial(void)
@@ -70,25 +79,23 @@ void init_serial(void)
 	os_mbx_init(serial_send_buf, sizeof(serial_send_buf));
 	os_mbx_init(serial_recv_buf, sizeof(serial_recv_buf));
 	
-	/* Enable GPIO clock */
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | 
+							RCC_APB2Periph_AFIO | 
+							RCC_APB2Periph_USART1, ENABLE);
 
-	/* Enable USART2 Clock */
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);  
-
-	/* Configure USART2 Rx as input floating */
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
+	/* Configure USART1 Rx as input floating */
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
   
-	/* Configure USART2 Tx as alternate function push-pull */
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_2;
+	/* Configure USART1 Tx as alternate function push-pull */
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
 	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
 	GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-	/* USART2 configuration ------------------------------------------------------*/
-	/* USART2 configured as follow:
+	/* USART1 configuration ------------------------------------------------------*/
+	/* USART1 configured as follow:
         - BaudRate = 9600 baud  
         - Word Length = 8 Bits
         - One Stop Bit
@@ -103,15 +110,15 @@ void init_serial(void)
 	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
 	USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
 
-	/* Configure USART2 */
-	USART_Init(USART2, &USART_InitStructure);
+	/* Configure USART1 */
+	USART_Init(USART1, &USART_InitStructure);
 	
-  	/* Enable USART2 Receive and Transmit interrupts */
-	USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
-	USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
+  	/* Enable USART1 Receive and Transmit interrupts */
+	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
+	USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
 
-	/* Enable the USART2 */
-	USART_Cmd(USART2, ENABLE);
+	/* Enable the USART1 */
+	USART_Cmd(USART1, ENABLE);
 }
 
 int write_serial(uint8_t *buf, int len, int timeout)  
@@ -119,19 +126,19 @@ int write_serial(uint8_t *buf, int len, int timeout)
 	int i;
 	    
 	for (i = 0; i < len; i++) {
-		USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
+		USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
 		
 		if (!serial_send_tag) {
 			serial_send_tag = 1;
-			USART_SendData(USART2, buf[i]);
+			USART_SendData(USART1, buf[i]);
 		} else {
 			if (os_mbx_send(serial_send_buf, (void *)buf[i], 0) != OS_R_OK) { 
-				USART_ITConfig(USART2, USART_IT_TXE, ENABLE);
+				USART_ITConfig(USART1, USART_IT_TXE, ENABLE);
 				break;
 			}	
 		}	
 
-		USART_ITConfig(USART2, USART_IT_TXE, ENABLE);
+		USART_ITConfig(USART1, USART_IT_TXE, ENABLE);
 	}
 
 	return i;
@@ -152,23 +159,23 @@ int read_serial(uint8_t *buf, int len, int timeout)
 	return i;
 } 
 
-__irq void USART2_IRQHandler(void)
+__irq void USART1_IRQHandler(void)
 {
 	static uint8_t recv_data;
 	static void *send_data;
 
-	if (USART_GetITStatus(USART2, USART_IT_RXNE) != RESET) {
-		recv_data = USART_ReceiveData(USART2);
+	if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) {
+		recv_data = USART_ReceiveData(USART1);
 		if (isr_mbx_check(serial_recv_buf) != 0)
 			isr_mbx_send(serial_recv_buf, (void *)recv_data);
 	}
 
-	if (USART_GetITStatus(USART2, USART_IT_TXE) != RESET) { 
+	if (USART_GetITStatus(USART1, USART_IT_TXE) != RESET) { 
 		if (isr_mbx_receive(serial_send_buf, &send_data) == OS_R_MBX)
-			USART_SendData(USART2, (uint8_t)send_data);
+			USART_SendData(USART1, (uint8_t)send_data);
   		else {
 		    serial_send_tag = 0;
-			USART_ITConfig(USART2, USART_IT_TXE, DISABLE);
+			USART_ITConfig(USART1, USART_IT_TXE, DISABLE);
   		}	
 	}	
 }
@@ -241,6 +248,7 @@ __irq void USB_LP_CAN1_RX0_IRQHandler(void)
 	if (rx_msg == NULL)
 		return;
 
+	comm_led = 1;
 	CAN_Receive(CAN1, CAN_FIFO0, rx_msg);
 	isr_mbx_send(can_msg_queue, rx_msg);
 }
@@ -305,7 +313,7 @@ __task void receive_can_data(void)
 
 __task void serial_handler(void)
 {
-	uint8_t buff[FRAME_BUF_LEN], ret;
+	uint8_t buff[FRAME_BUF_LEN];
 	const uint8_t resp[5] = {0x7E, 0x05, 0x04, 0x01, 0x7E}; 
 	int len;
 	CanTxMsg tx_msg;
@@ -388,18 +396,22 @@ _restart:
 
 __task void blink(void)
 {
-	unsigned int tag = 0;
+	unsigned int counter = 0;
 
 	while(1) {
-		if (!tag) {
-			tag = 1;
-			GPIOA->BSRR = 1 << 7;
-	   	} else {
-			tag = 0;
-			GPIOA->BRR = 1 << 7;
-		}
+		if (++counter == 50) {
+			counter = 0;
 
- 		os_dly_wait(50);
+			GPIOA->ODR ^= 1<<7;
+		}	
+
+		if (comm_led) {
+			GPIOA->BRR = 1<<6;
+			comm_led = 0;
+		} else
+			GPIOA->BSRR = 1<<6;
+		
+ 		os_dly_wait(1);
 	}
 }
 
